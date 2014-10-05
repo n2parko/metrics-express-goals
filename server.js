@@ -1,31 +1,66 @@
-
-var assert = require('assert');
 var Metrics = require('metrics');
 var Express = require('metrics-express');
+var getMetricGoogle = require('./getMetricGoogle.js');
 
-var metrics = Metrics();
+var mrrEnt = 'MRR_Enterprise_Actual';
+var mrrEntGoal = 'MRR_Enterprise_Target';
+var STARTING_MRR_ENT = 5000;
 
-var geckoboard = require('geckoboard')('98af3d737632bc25debc97cafd58aa72');
-  
-var geckOMeter = GeckOMeter('111516-b550f8e5-bb78-4fca-a38b-1ac96985ec9b');
-geckOMeter.setCurrent( "10");
-geckOMeter.setMax( "Max", "20" );
-geckOMeter.setMin( "Min", "1" );
-geckoboard.push( geckOMeter );
+var ROW = 1;
+var COL = 2;
 
-module.exports = function (metrics) {
-  metrics.on('b', geckoboard('111516-b550f8e5-bb78-4fca-a38b-1ac96985ec9b').number);
-}
+var PORT = 7002;
 
-var setCrapData = function(){
-	
-	var alphabet = "abcdefghijklmnopqrstuvwxyz";
-	for(i = 0; i < alphabet.length; i++){
-		console.log(alphabet.charAt(i));
-		metrics.set(alphabet.charAt(i), i);
-	};	
-};
+var GECKOMETER_ID = '111516-b550f8e5-bb78-4fca-a38b-1ac96985ec9b';
+var GECKOBOARD_API_KEY = '98af3d737632bc25debc97cafd58aa72';
+var geckoboard = require('geckoboard')(GECKOBOARD_API_KEY);
 
-setCrapData();
+
+/**
+* Callback to set goal once the metric is retreived
+*/
+
+var setGoal = function (val){
+	metrics.set(mrrEntGoal, val);
+	};
+
+
+/**
+* Initialize Metrics & refresh target every 10 seconds
+*/
+
+var metrics = Metrics()
+				.every('10s', function (){
+					getMetricGoogle.getMetric(ROW, COL, setGoal);
+				});
+				
+/**
+* Refresh target every 24 hours
+*/
+
+metrics.set(mrrEnt, STARTING_MRR_ENT);
+
+
+/**
+* When metric becomes available, push update to geckoboard
+*/
+
+metrics.on(mrrEnt, mrrEntGoal, function (ent, target){
+  var payload = { item: ent, 
+  				  min: {value: 0, text: ""}, 
+  				  max: {value: target, text: "Target"} 
+  				  };
+
+  geckoboard(GECKOMETER_ID).push(payload);
+});
+
+
+/**
+* Launch the server app
+*/
+
 Express(metrics)
-  .listen(7002);
+  .listen(PORT);
+  
+  
+  
